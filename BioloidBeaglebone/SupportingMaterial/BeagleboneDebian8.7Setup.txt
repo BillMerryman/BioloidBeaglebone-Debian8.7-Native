@@ -1,0 +1,161 @@
+login:root 
+password:root
+
+----------- Enable wireless
+
+connmanctl
+scan wifi
+services
+agent on
+config (long name returned by services) --ipv4 manual <ip address> <netmask> <gateway>  --nameservers <ip address>
+connect (long name returned by services)
+quit
+
+---------- Resize to fit SD card
+
+to resize the partition:
+fdisk /dev/mmcblk0
+d
+n
+p
+default
+8192
+default
+w
+resize2fs /dev/mmcblk0p1
+
+OR
+
+cd /opt/scripts/tools
+git pull
+./grow_partition.sh
+
+---------------update
+
+apt-get update
+
+---------------switch to bone kernel
+
+cd /opt/scripts/tools/ 
+git pull 
+sudo ./update_kernel.sh --bone-rt-kernel --lts-4_1 
+
+---------------to make life easier
+
+apt-get install leafpad
+
+---------------enable remote X without SSH
+
+go into /etc/lightdm/lightdm.conf and edit the XDMCP settings:
+[LightDM]
+start-default-seat=false
+[SeatDefaults]
+xserver-allow-tcp=true
+autologin-user=root
+[XDMCPServer]
+enabled=true
+port=177
+key=
+
+--------------disable HDMI and eMMC
+
+go into /boot/uEnv.txt
+disable hdmi and emmc by uncommenting the line
+#dtb=am335x-boneblack-overlay.dtb
+remove cape_universal=enable from cmdline
+
+-------------enable root SSH for SFTP
+
+enable root SSH
+etc/ssh/sshd_config
+PermitRootLogin yes
+
+------------install opencv (see below for alternate)
+
+apt-get install build-essential cmake pkg-config
+apt-get install libtiff4-dev libjpeg-dev libjasper-dev libpng12-dev
+apt-get install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev 
+apt-get install libgtk2.0-dev
+copy opencv3.0 to desktop folder
+cd opencv
+mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D WITH_CUDA=OFF -D WITH_CUFFT=OFF -D WITH_CUBLAS=OFF -D WITH_NVCUVID=OFF -D WITH_OPENCL=OFF -D WITH_OPENCLAMDFFT=OFF -D WITH_OPENCLAMDBLAS=OFF -D BUILD_opencv_apps=OFF -D BUILD_DOCS=OFF -D BUILD_PERF_TESTS=OFF -D BUILD_TESTS=OFF -D ENABLE_NEON=on ..
+make
+make install
+ldconfig
+
+------------alternate install opencv
+
+apt-get install build-essential cmake pkg-config
+apt-get install libtiff5-dev libjpeg-dev libjasper-dev libpng12-dev
+apt-get install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev 
+apt-get install libgtk2.0-dev
+sudo apt-get install unzip
+
+wget -O opencv-3.4.0.zip https://github.com/Itseez/opencv/archive/3.4.0.zip
+wget -O opencv_contrib-3.4.0.zip https://github.com/Itseez/opencv_contrib/archive/3.4.0.zip
+
+unzip opencv-3.4.0.zip
+unzip opencv_contrib-3.4.0.zip
+
+cd opencv-3.4.0
+mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=RELEASE \
+-D CMAKE_INSTALL_PREFIX=/usr/local \
+-D OPENCV_EXTRA_MODULES_PATH=/root/Desktop/opencv_contrib-3.4.0/modules \
+-D INSTALL_PYTHON_EXAMPLES=OFF \
+-D INSTALL_C_EXAMPLES=OFF \
+-D BUILD_EXAMPLES=OFF \
+-D WITH_CUDA=OFF \
+-D WITH_CUFFT=OFF \
+-D WITH_CUBLAS=OFF \
+-D WITH_NVCUVID=OFF \
+-D WITH_OPENCL=OFF \
+-D WITH_OPENCLAMDFFT=OFF \
+-D WITH_OPENCLAMDBLAS=OFF \
+-D ENABLE_VFPV3=ON \
+-D ENABLE_NEON=ON \
+..
+
+------------switch from LXQT to LXDE 
+note: (this will remove connmanctl, so this should not be done from a wireless connection. Use a serial connection instead)
+
+sudo apt-get -y install lxde lxde-core lxde-icon-theme
+sudo apt-get remove --purge lxqt-session
+
+go into /etc/lightdm/lightdm.conf and edit:
+[SeatDefaults]
+autologin-session=lxqt (change lxqt to lxde)
+
+add to /etc/network/interfaces:
+
+auto {interface name}
+allow-hotplug {interface name}
+iface {interface name} inet static
+    wpa-ssid ""
+    wpa-psk  ""
+    address 192.168.2.149
+    netmask 255.255.255.0
+    network 192.168.2.0
+    gateway 192.168.2.1
+    dns-nameservers 192.168.2.1
+
+where {interface name} is the name of the interface found by running the ifconfig command.
+may need to delete the /etc/resolv.conf symlink, update the interface name, and run dhclient to get DNS working again...
+
+rename or delete am335x_evm.sh in /opt/scripts/boot. This disables the usb drive function, but makes sure you can use the wifi, even if 
+you power from a PC. Also comment out the usb entries in /etc/network/interfaces
+
+------------PRU Compilation Support
+
+if it isn't already installed, install the Pru Software Support Package. (I installed to /usr/lib/ti/pru-software-support-package and put a symlink on the desktop.)
+
+In .bashrc in your home directory, add:
+export PRU_CGT=/usr/share/ti/cgt-pru
+export PRU_SUPPORT=/usr/lib/ti/pru-software-support-package
+
+If it is already installed, make sure to create a 'bin' folder in /usr/share/ti/cgt-pru, and in this folder create symlinks clpru, lnkpru, and hexpru that point to the respective executables in /usr/bin
+
+------------to fix bad DOS line returns in scripts
+
+sed -i -e 's/\r$//' scriptname.sh
