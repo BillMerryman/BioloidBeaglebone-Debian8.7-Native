@@ -1,0 +1,169 @@
+login:root 
+password:root
+
+----------- Enable wireless
+
+connmanctl
+scan wifi
+services
+agent on
+config (long name returned by services) --ipv4 manual <ip address> <netmask> <gateway>  --nameservers <ip address>
+connect (long name returned by services)
+quit
+
+---------- Resize to fit SD card
+
+to resize the partition:
+fdisk /dev/mmcblk0
+d
+n
+p
+default
+8192
+default
+w
+resize2fs /dev/mmcblk0p1
+
+OR
+
+cd /opt/scripts/tools
+git pull
+./grow_partition.sh
+
+---------------update
+
+apt-get update
+apt-get install debian-archive-keyring
+apt-get update
+
+---------------switch to bone kernel
+
+cd /opt/scripts/tools/ 
+git pull 
+./update_kernel.sh --bone-rt-kernel --lts-4_1 
+
+--------------disable HDMI and eMMC
+
+go into /boot/uEnv.txt
+disable hdmi and emmc by uncommenting the line
+#dtb=am335x-boneblack-overlay.dtb
+remove cape_universal=enable from cmdline
+
+---------------to make life easier
+
+apt-get install leafpad
+
+---------------enable remote X without SSH
+
+go into /etc/lightdm/lightdm.conf and edit the XDMCP settings:
+[LightDM]
+start-default-seat=false
+[SeatDefaults]
+xserver-allow-tcp=true
+autologin-user=root
+[XDMCPServer]
+enabled=true
+port=177
+key=
+
+-------------enable root SSH for SFTP
+
+enable root SSH
+/etc/ssh/sshd_config
+PermitRootLogin yes
+
+------------switch from LXQT to LXDE
+
+note: (this will remove connmanctl, so this should not be done from a wireless connection. Use a serial connection instead)
+
+apt-get -y install lxde lxde-core lxde-icon-theme
+apt-get remove --purge lxqt-session
+
+go into /etc/lightdm/lightdm.conf and edit:
+[SeatDefaults]
+autologin-session=lxqt (change lxqt to lxde)
+
+add to /etc/network/interfaces if you didn't already:
+
+auto {interface name}
+allow-hotplug {interface name}
+iface {interface name} inet static
+    wpa-ssid ""
+    wpa-psk  ""
+    address 192.168.2.149
+    netmask 255.255.255.0
+    network 192.168.2.0
+    gateway 192.168.2.1
+    dns-nameservers 192.168.2.1
+
+where {interface name} is the name of the interface found by running the iwconfig or ifconfig commands.
+may need to delete the /etc/resolv.conf symlink, update the interface name, and run dhclient to get DNS working again...
+
+rename or delete am335x_evm.sh in /opt/scripts/boot. This disables the usb drive function, but makes sure you can use the wifi, even if 
+you power from a PC. Also comment out the usb entries in /etc/network/interfaces
+
+------------install opencv
+
+apt-get install build-essential cmake pkg-config
+apt-get install libtiff5-dev libjpeg-dev libjasper-dev libpng12-dev
+apt-get install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev 
+apt-get install libgtk2.0-dev
+apt-get install unzip
+
+cd Desktop
+
+wget -O opencv-3.4.3.zip https://github.com/Itseez/opencv/archive/3.4.3.zip
+wget -O opencv_contrib-3.4.3.zip https://github.com/Itseez/opencv_contrib/archive/3.4.3.zip
+
+unzip opencv-3.4.3.zip
+unzip opencv_contrib-3.4.3.zip
+
+cd opencv-3.4.3
+mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=RELEASE \
+-D CMAKE_INSTALL_PREFIX=/usr/local \
+-D OPENCV_EXTRA_MODULES_PATH=/root/Desktop/opencv_contrib-3.4.3/modules \
+-D INSTALL_PYTHON_EXAMPLES=OFF \
+-D INSTALL_C_EXAMPLES=OFF \
+-D BUILD_EXAMPLES=OFF \
+-D WITH_CUDA=OFF \
+-D WITH_CUFFT=OFF \
+-D WITH_CUBLAS=OFF \
+-D WITH_NVCUVID=OFF \
+-D WITH_OPENCL=OFF \
+-D WITH_OPENCLAMDFFT=OFF \
+-D WITH_OPENCLAMDBLAS=OFF \
+-D ENABLE_VFPV3=ON \
+-D ENABLE_NEON=ON \
+..
+
+free //check for swap file, if not present do the following:
+dd if=/dev/zero of=/var/swap.img bs=1024k count=1000 //this may take a while to run
+mkswap /var/swap.img
+chmod 600 /var/swap.img
+swapon /var/swap.img
+
+make
+make install
+ldconfig
+
+swapoff /var/swap.img //if you turned on the swap file previously
+rm /var/swap.img //to recover the 1GB of space
+
+------------PRU Compilation Support
+
+In .bashrc in your home directory, add:
+export PRU_CGT=/usr/share/ti/cgt-pru
+export PRU_SUPPORT=/usr/lib/ti/pru-software-support-package
+
+create a symlink named 'bin' in /usr/share/ti/cgt-pru to point to /usr/bin:
+ln -s /usr/bin /usr/share/ti/cgt-pru/bin
+
+------------to fix bad DOS line returns in scripts
+
+sed -i -e 's/\r$//' scriptname.sh
+
+
+----------- To get rid of the weird message in dmesg
+
+rm /etc/modules-load.d/roboticscape_modules.conf
